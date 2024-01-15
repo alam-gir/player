@@ -1,18 +1,21 @@
-import mongoose,{Schema} from 'mongoose'
+import mongoose,{Schema, Document} from 'mongoose'
 import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
 
-type IUser = {
+export interface IUser extends Document {
     username: string,
     fullName: string,
     email: string,
     password: string,
     avatar: string,
     coverImage: string,
-    refreshToken?: string,
+    refreshToken: string,
+    isPasswordValid : (password: string) => Promise<boolean>,
+    generateRefreshToken : () => string,
+    generateAccessToken : () => string,
 }
 
-const userSchema = new Schema(
+const userSchema : Schema = new Schema(
     {
         username: {
             type: String,
@@ -52,6 +55,11 @@ const userSchema = new Schema(
             type: String,
             required: [true, 'Password is required']
         },
+        role: {
+            type: String,
+            default: "user",
+            enum: ["user", "admin", "super-admin"]
+        },
         refreshToken: {
             type: String
         }
@@ -69,21 +77,21 @@ userSchema.pre("save",async function(next) {
     next();
 })
 
-userSchema.methods.isPasswordCorrect = async function(password: string) {
+userSchema.methods.isPasswordValid = async function(password: string) {
     return await bcrypt.compare(password, this.password)
 }
 
-userSchema.methods.generateAccessToken = async function() {
-    return await jwt.sign({_id: this._id, name: this.name, email: this.email, avater: this.avatar, access: this.accessToken, refresh: this.refreshToken}, process.env.ACCESS_TOKEN_SECRET as string, {
-        expiresIn: '1h'
+userSchema.methods.generateAccessToken = function() {
+    return jwt.sign({_id: this._id, name: this.name, email: this.email, avater: this.avatar, access: this.accessToken, refresh: this.refreshToken}, process.env.ACCESS_TOKEN_SECRET as string, {
+        expiresIn:  process.env.ACCESS_TOKEN_EXPIRES
     })
 }
 
-userSchema.methods.generateRefreshToken = async function() {
-    return await jwt.sign({
+userSchema.methods.generateRefreshToken = function() {
+    return  jwt.sign({
         _id: this._id,
     }, process.env.REFRESH_TOKEN_SECRET as string,{
-    expiresIn: '1d'
+    expiresIn: process.env.REFRESH_TOKEN_EXPIRES
     })
 }
 
